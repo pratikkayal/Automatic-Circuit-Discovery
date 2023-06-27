@@ -17,25 +17,25 @@ import IPython
 from acdc.acdc_utils import MatchNLLMetric, frac_correct_metric, logit_diff_metric, kl_divergence, negative_log_probs
 import torch
 from acdc.docstring.utils import AllDataThings
-from acdc.ioi.ioi_dataset import IOIDataset  # NOTE: we now import this LOCALLY so it is deterministic
+from acdc.multilingual.multilingual_dataset import MultilingualDataset  # NOTE: we now import this LOCALLY so it is deterministic
 from tqdm import tqdm
 import wandb
 from transformer_lens.HookedTransformer import HookedTransformer
 
 def get_gpt2_small(device="cuda") -> HookedTransformer:
-    tl_model = HookedTransformer.from_pretrained("gpt2")
+    tl_model = HookedTransformer.from_pretrained("ai-forever/mGPT")
     tl_model = tl_model.to(device)
     tl_model.set_use_attn_result(True)
     tl_model.set_use_split_qkv_input(True)
     return tl_model
 
-def get_ioi_gpt2_small(device="cuda"):
+def get_multilingual_gpt2_small(device="cuda"):
     """For backwards compat"""
     return get_gpt2_small(device=device)
 
-def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=True):
+def get_all_multilingual_things(num_examples, device, metric_name, kl_return_one_element=True):
     tl_model = get_gpt2_small(device=device)
-    ioi_dataset = IOIDataset(
+    multilingual_dataset = MultilingualDataset(
         prompt_type="ABBA",
         N=num_examples*2,
         nb_templates=1,
@@ -43,20 +43,20 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
     )
 
     abc_dataset = (
-        ioi_dataset.gen_flipped_prompts(("IO", "RAND"), seed=1)
+        multilingual_dataset.gen_flipped_prompts(("IO", "RAND"), seed=1)
         .gen_flipped_prompts(("S", "RAND"), seed=2)
         .gen_flipped_prompts(("S1", "RAND"), seed=3)
     )
 
-    seq_len = ioi_dataset.toks.shape[1]
+    seq_len = multilingual_dataset.toks.shape[1]
     assert seq_len == 16, f"Well, I thought ABBA #1 was 16 not {seq_len} tokens long..."
 
-    default_data = ioi_dataset.toks.long()[:num_examples*2, : seq_len - 1].to(device)
+    default_data = multilingual_dataset.toks.long()[:num_examples*2, : seq_len - 1].to(device)
     patch_data = abc_dataset.toks.long()[:num_examples*2, : seq_len - 1].to(device)
-    labels = ioi_dataset.toks.long()[:num_examples*2, seq_len-1]
-    wrong_labels = torch.as_tensor(ioi_dataset.s_tokenIDs[:num_examples*2], dtype=torch.long, device=device)
+    labels = multilingual_dataset.toks.long()[:num_examples*2, seq_len-1]
+    wrong_labels = torch.as_tensor(multilingual_dataset.s_tokenIDs[:num_examples*2], dtype=torch.long, device=device)
 
-    assert torch.equal(labels, torch.as_tensor(ioi_dataset.io_tokenIDs, dtype=torch.long))
+    assert torch.equal(labels, torch.as_tensor(multilingual_dataset.io_tokenIDs, dtype=torch.long))
     labels = labels.to(device)
 
     validation_data = default_data[:num_examples, :]
@@ -156,7 +156,7 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
         test_patch_data=test_patch_data,
     )
 
-IOI_CIRCUIT = {
+MULTILINGUAL_CIRCUIT = {
     "name mover": [
         (9, 9),  # by importance
         (10, 0),
@@ -200,10 +200,10 @@ class Conn:
     out: str
     qkv: tuple[str, ...]
 
-def get_ioi_true_edges(model):
+def get_multilingual_true_edges(model):
     nodes_to_mask = []
     
-    all_groups_of_nodes = [group for _, group in IOI_CIRCUIT.items()]
+    all_groups_of_nodes = [group for _, group in MULTILINGUAL_CIRCUIT.items()]
     all_nodes = [node for group in all_groups_of_nodes for node in group]
     assert len(all_nodes) == 26, len(all_nodes)
 
@@ -265,7 +265,7 @@ def get_ioi_true_edges(model):
             for mlp_layer_idx in range(12):
                 idx_from.append((mlp_layer_idx, f"blocks.{mlp_layer_idx}.hook_mlp_out", TorchIndex([None])))
         else:
-            idx_from = [(layer_idx, f"blocks.{layer_idx}.attn.hook_result", TorchIndex([None, None, head_idx])) for layer_idx, head_idx in IOI_CIRCUIT[conn.inp]]
+            idx_from = [(layer_idx, f"blocks.{layer_idx}.attn.hook_result", TorchIndex([None, None, head_idx])) for layer_idx, head_idx in MULTILINGUAL_CIRCUIT[conn.inp]]
 
         if conn.out == "OUTPUT":
             idx_to = [(13, "blocks.11.hook_resid_post", TorchIndex([None]))]
@@ -274,7 +274,7 @@ def get_ioi_true_edges(model):
         else:
             idx_to = [
                 (layer_idx, f"blocks.{layer_idx}.hook_{letter}_input", TorchIndex([None, None, head_idx]))
-                for layer_idx, head_idx in IOI_CIRCUIT[conn.out]
+                for layer_idx, head_idx in MULTILINGUAL_CIRCUIT[conn.out]
                 for letter in conn.qkv
             ]
 
@@ -298,8 +298,8 @@ GROUP_COLORS = {
 }
 MLP_COLOR = "#f0f0f0"
 
-def ioi_group_colorscheme():
-    assert set(GROUP_COLORS.keys()) == set(IOI_CIRCUIT.keys())
+def multilingual_group_colorscheme():
+    assert set(GROUP_COLORS.keys()) == set(MULTILINGUAL_CIRCUIT.keys())
 
     scheme = {
         "embed": "#cbd5e8",
@@ -309,7 +309,7 @@ def ioi_group_colorscheme():
     for i in range(12):
         scheme[f"<m{i}>"] = MLP_COLOR
 
-    for k, heads in IOI_CIRCUIT.items():
+    for k, heads in MULTILINGUAL_CIRCUIT.items():
         for (layer, head) in heads:
             for qkv in ["", "_q", "_k", "_v"]:
                 scheme[f"<a{layer}.{head}{qkv}>"] = GROUP_COLORS[k]

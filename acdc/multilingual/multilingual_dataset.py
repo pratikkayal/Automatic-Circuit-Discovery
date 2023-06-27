@@ -1,7 +1,5 @@
 """
-This is taken from mlab2 repo; arthur/induction branch
-
-It is a very slightly edited version of https://github.com/redwoodresearch/Easy-Transformer/blob/main/easy_transformer/ioi_dataset.py
+It is an edited version of ioi task from main branch of Automatic-Circuit-Discovery repo by Arthur Conmy
 """
 
 import io
@@ -292,7 +290,7 @@ def gen_prompt_uniform(
     random.seed(seed)
 
     nb_gen = 0
-    ioi_prompts = []
+    multilingual_prompts = []
     while nb_gen < N:
         temp = random.choice(templates)
         temp_id = templates.index(temp)
@@ -305,10 +303,10 @@ def gen_prompt_uniform(
             name_3 = random.choice(names)
 
         nouns = {}
-        ioi_prompt = {}
+        multilingual_prompt = {}
         for k in nouns_dict:
             nouns[k] = random.choice(nouns_dict[k])
-            ioi_prompt[k] = nouns[k]
+            multilingual_prompt[k] = nouns[k]
         prompt = temp
         for k in nouns_dict:
             prompt = prompt.replace(k, nouns[k])
@@ -325,13 +323,13 @@ def gen_prompt_uniform(
         if abc:
             prompt1 = prompt1.replace("[C]", name_3)
         prompt1 = pref + prompt1
-        ioi_prompt["text"] = prompt1
-        ioi_prompt["IO"] = name_1
-        ioi_prompt["S"] = name_2
-        ioi_prompt["TEMPLATE_IDX"] = temp_id
-        ioi_prompts.append(ioi_prompt)
+        multilingual_prompt["text"] = prompt1
+        multilingual_prompt["IO"] = name_1
+        multilingual_prompt["S"] = name_2
+        multilingual_prompt["TEMPLATE_IDX"] = temp_id
+        multilingual_prompts.append(multilingual_prompt)
         if abc:
-            ioi_prompts[-1]["C"] = name_3
+            multilingual_prompts[-1]["C"] = name_3
 
         nb_gen += 1
 
@@ -339,11 +337,11 @@ def gen_prompt_uniform(
             prompt2 = prompt.replace("[A]", name_2)
             prompt2 = prompt2.replace("[B]", name_1)
             prompt2 = pref + prompt2
-            ioi_prompts.append(
+            multilingual_prompts.append(
                 {"text": prompt2, "IO": name_2, "S": name_1, "TEMPLATE_IDX": temp_id}
             )
             nb_gen += 1
-    return ioi_prompts
+    return multilingual_prompts
 
 
 def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
@@ -603,23 +601,23 @@ ALL_SEM = [
 ]  # , "verb", "starts", "S-1", "punct"] # Kevin's antic averages
 
 
-def get_idx_dict(ioi_prompts, tokenizer, prepend_bos=False, toks=None):
+def get_idx_dict(multilingual_prompts, tokenizer, prepend_bos=False, toks=None):
     (IO_idxs, S_idxs, S2_idxs,) = get_name_idxs(
-        ioi_prompts,
+        multilingual_prompts,
         tokenizer,
         idx_types=["IO", "S", "S2"],
         prepend_bos=prepend_bos,
     )
 
     end_idxs = get_end_idxs(
-        ioi_prompts,
+        multilingual_prompts,
         tokenizer,
         name_tok_len=1,
         prepend_bos=prepend_bos,
         toks=toks,
     )
 
-    punct_idxs = get_word_idxs(ioi_prompts, [",", "."], tokenizer)
+    punct_idxs = get_word_idxs(multilingual_prompts, [",", "."], tokenizer)
 
     return {
         "IO": IO_idxs,
@@ -647,9 +645,9 @@ PREFIXES = [
 ]
 
 
-def flip_prefixes(ioi_prompts):
-    ioi_prompts = copy.deepcopy(ioi_prompts)
-    for prompt in ioi_prompts:
+def flip_prefixes(multilingual_prompts):
+    multilingual_prompts = copy.deepcopy(multilingual_prompts)
+    for prompt in multilingual_prompts:
         if prompt["text"].startswith("The "):
             prompt["text"] = "After the lunch, the" + prompt["text"][4:]
         else:
@@ -658,12 +656,12 @@ def flip_prefixes(ioi_prompts):
             first_idx = min(io_idx, s_idx)
             prompt["text"] = random.choice(PREFIXES) + " " + prompt["text"][first_idx:]
 
-    return ioi_prompts
+    return multilingual_prompts
 
 
-def flip_names(ioi_prompts):
-    ioi_prompts = copy.deepcopy(ioi_prompts)
-    for prompt in ioi_prompts:
+def flip_names(multilingual_prompts):
+    multilingual_prompts = copy.deepcopy(multilingual_prompts)
+    for prompt in multilingual_prompts:
         punct_idx = max(
             [i for i, x in enumerate(list(prompt["text"])) if x in [",", "."]]
         )  # only flip name in the first clause
@@ -678,10 +676,10 @@ def flip_names(ioi_prompts):
         ) + prompt["text"][punct_idx:]
         # print(prompt["text"])
 
-    return ioi_prompts
+    return multilingual_prompts
 
 
-class IOIDataset:
+class MultilingualDataset:
     def __init__(
         self,
         prompt_type: Union[
@@ -693,13 +691,13 @@ class IOIDataset:
         symmetric=False,
         prefixes=None,
         nb_templates=None,
-        ioi_prompts_for_word_idxs=None,
+        multilingual_prompts_for_word_idxs=None,
         prepend_bos=False,
         manual_word_idx=None,
         seed=None,
     ):
         """
-        ioi_prompts_for_word_idxs:
+        multilingual_prompts_for_word_idxs:
             if you want to use a different set of prompts to get the word indices, you can pass it here
             (example use case: making a ABCA dataset)
         """
@@ -759,7 +757,7 @@ class IOIDataset:
         self.prefixes = prefixes
         self.prompt_type = prompt_type
         if prompts is None:
-            self.ioi_prompts = gen_prompt_uniform(  # a list of dict of the form {"text": "Alice and Bob bla bla. Bob gave bla to Alice", "IO": "Alice", "S": "Bob"}
+            self.multilingual_prompts = gen_prompt_uniform(  # a list of dict of the form {"text": "Alice and Bob bla bla. Bob gave bla to Alice", "IO": "Alice", "S": "Bob"}
                 self.templates,
                 NAMES,
                 nouns_dict={"[PLACE]": PLACES, "[OBJECT]": OBJECTS},
@@ -771,9 +769,9 @@ class IOIDataset:
             )
         else:
             assert N == len(prompts), f"{N} and {len(prompts)}"
-            self.ioi_prompts = prompts
+            self.multilingual_prompts = prompts
 
-        all_ids = [prompt["TEMPLATE_IDX"] for prompt in self.ioi_prompts]
+        all_ids = [prompt["TEMPLATE_IDX"] for prompt in self.multilingual_prompts]
         all_ids_ar = np.array(all_ids)
         self.groups = []
         for id in list(set(all_ids)):
@@ -789,31 +787,31 @@ class IOIDataset:
             )
 
         self.sentences = [
-            prompt["text"] for prompt in self.ioi_prompts
+            prompt["text"] for prompt in self.multilingual_prompts
         ]  # a list of strings. Renamed as this should NOT be forward passed
 
         self.templates_by_prompt = []  # for each prompt if it's ABBA or BABA
         for i in range(N):
-            if self.sentences[i].index(self.ioi_prompts[i]["IO"]) < self.sentences[
+            if self.sentences[i].index(self.multilingual_prompts[i]["IO"]) < self.sentences[
                 i
-            ].index(self.ioi_prompts[i]["S"]):
+            ].index(self.multilingual_prompts[i]["S"]):
                 self.templates_by_prompt.append("ABBA")
             else:
                 self.templates_by_prompt.append("BABA")
 
-        # print(self.ioi_prompts, "that's that")
+        # print(self.multilingual_prompts, "that's that")
         texts = [
             (self.tokenizer.bos_token if prepend_bos else "") + prompt["text"]
-            for prompt in self.ioi_prompts
+            for prompt in self.multilingual_prompts
         ]
         self.toks = torch.Tensor(self.tokenizer(texts, padding=True).input_ids).type(
             torch.int
         )
 
-        if ioi_prompts_for_word_idxs is None:
-            ioi_prompts_for_word_idxs = self.ioi_prompts
+        if multilingual_prompts_for_word_idxs is None:
+            multilingual_prompts_for_word_idxs = self.multilingual_prompts
         self.word_idx = get_idx_dict(
-            ioi_prompts_for_word_idxs,
+            multilingual_prompts_for_word_idxs,
             self.tokenizer,
             prepend_bos=prepend_bos,
             toks=self.toks,
@@ -829,15 +827,15 @@ class IOIDataset:
         self.max_len = max(
             [
                 len(self.tokenizer(prompt["text"]).input_ids)
-                for prompt in self.ioi_prompts
+                for prompt in self.multilingual_prompts
             ]
         )
 
         self.io_tokenIDs = [
-            self.tokenizer.encode(" " + prompt["IO"])[0] for prompt in self.ioi_prompts
+            self.tokenizer.encode(" " + prompt["IO"])[0] for prompt in self.multilingual_prompts
         ]
         self.s_tokenIDs = [
-            self.tokenizer.encode(" " + prompt["S"])[0] for prompt in self.ioi_prompts
+            self.tokenizer.encode(" " + prompt["S"])[0] for prompt in self.multilingual_prompts
         ]
 
         self.tokenized_prompts = []
@@ -848,20 +846,20 @@ class IOIDataset:
             )
 
     @classmethod
-    def construct_from_ioi_prompts_metadata(cls, templates, ioi_prompts_data, **kwargs):
+    def construct_from_multilingual_prompts_metadata(cls, templates, multilingual_promps_data, **kwargs):
         """
-        Given a list of dictionaries (ioi_prompts_data)
+        Given a list of dictionaries (multilingual_prompts_data)
         {
             "S": "Bob",
             "IO": "Alice",
             "TEMPLATE_IDX": 0
         }
 
-        create and IOIDataset from these
+        create and MultilingualDataset from these
         """
 
         prompts = []
-        for metadata in ioi_prompts_data:
+        for metadata in multilingual_promps_data:
             cur_template = templates[metadata["TEMPLATE_IDX"]]
             prompts.append(metadata)
             prompts[-1]["text"] = (
@@ -872,11 +870,11 @@ class IOIDataset:
             )
             # prompts[-1]["[PLACE]"] = metadata["[PLACE]"]
             # prompts[-1]["[OBJECT]"] = metadata["[OBJECT]"]
-        return IOIDataset(prompt_type=templates, prompts=prompts, **kwargs)
+        return MultilingualDataset(prompt_type=templates, prompts=prompts, **kwargs)
 
     def gen_flipped_prompts(self, flip, seed=None):
         """
-        Return a IOIDataset where the name to flip has been replaced by a random name.
+        Return a MultilingualDataset where the name to flip has been replaced by a random name.
         """
 
         assert seed is not None
@@ -886,18 +884,18 @@ class IOIDataset:
         ], f"{flip} is not a tuple. Probably change to ('IO', 'RAND') or equivalent?"
 
         if flip == "prefix":
-            flipped_prompts = flip_prefixes(self.ioi_prompts)
+            flipped_prompts = flip_prefixes(self.multilingual_prompts)
         else:
             if flip in [("IO", "S1"), ("S", "IO")]:
                 flipped_prompts = gen_flipped_prompts(
-                    self.ioi_prompts,
+                    self.multilingual_prompts,
                     None,
                     flip,
                     seed=(seed+12345)%9876,
                 )
             elif flip == ("S2", "IO"):
                 flipped_prompts = gen_flipped_prompts(
-                    self.ioi_prompts,
+                    self.multilingual_prompts,
                     None,
                     flip,
                     seed=(seed+12345)%6543,
@@ -912,37 +910,37 @@ class IOIDataset:
                     "S1",
                     "S+1",
                 ], flip
-                flipped_prompts = gen_flipped_prompts(self.ioi_prompts, NAMES, flip, seed=(seed+345467)%5432)
+                flipped_prompts = gen_flipped_prompts(self.multilingual_prompts, NAMES, flip, seed=(seed + 345467) % 5432)
 
-        flipped_ioi_dataset = IOIDataset(
+        flipped_multilingual_dataset = MultilingualDataset(
             prompt_type=self.prompt_type,
             N=self.N,
             tokenizer=self.tokenizer,
             prompts=flipped_prompts,
             prefixes=self.prefixes,
-            ioi_prompts_for_word_idxs=flipped_prompts if flip[0] == "RAND" else None,
+            multilingual_prompts_for_word_idxs=flipped_prompts if flip[0] == "RAND" else None,
             prepend_bos=self.prepend_bos,
             manual_word_idx=self.word_idx,
             seed=(seed+23456)%963,
         )
-        return flipped_ioi_dataset
+        return flipped_multilingual_dataset
 
     def copy(self):
-        copy_ioi_dataset = IOIDataset(
+        copy_multilingual_dataset = MultilingualDataset(
             prompt_type=self.prompt_type,
             N=self.N,
             tokenizer=self.tokenizer,
-            prompts=self.ioi_prompts.copy(),
+            prompts=self.multilingual_prompts.copy(),
             prefixes=self.prefixes.copy()
             if self.prefixes is not None
             else self.prefixes,
-            ioi_prompts_for_word_idxs=self.ioi_prompts.copy(),
+            multilingual_prompts_for_word_idxs=self.multilingual_prompts.copy(),
         )
-        return copy_ioi_dataset
+        return copy_multilingual_dataset
 
     def __getitem__(self, key):
-        sliced_prompts = self.ioi_prompts[key]
-        sliced_dataset = IOIDataset(
+        sliced_prompts = self.multilingual_prompts[key]
+        sliced_dataset = MultilingualDataset(
             prompt_type=self.prompt_type,
             N=len(sliced_prompts),
             tokenizer=self.tokenizer,
@@ -963,14 +961,3 @@ class IOIDataset:
 
     def tokenized_prompts(self):
         return self.toks
-
-
-# tests that the templates work as intended
-# assert len(BABA_EARLY_IOS) == len(BABA_LATE_IOS), (len(BABA_EARLY_IOS), len(BABA_LATE_IOS))
-# for i in range(len(BABA_EARLY_IOS)):
-#     d1 = IOIDataset(N=1, prompt_type=BABA_EARLY_IOS[i:i+1])
-#     d2 = IOIDataset(N=1, prompt_type=BABA_LATE_IOS[i:i+1])
-#     for tok in ["IO", "S"]: # occur one earlier and one later
-#         assert d1.word_idx[tok] + 1 == d2.word_idx[tok], (d1.word_idx[tok], d2.word_idx[tok])
-#     for tok in ["S2"]:
-#         assert d1.word_idx[tok] == d2.word_idx[tok], (d1.word_idx[tok], d2.word_idx[tok])
