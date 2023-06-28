@@ -9,9 +9,10 @@ from acdc.acdc_utils import (
     reset_network,
 )  # these introduce several important classes !!!
 from acdc.TLACDCExperiment import TLACDCExperiment
-from acdc.multilingual.utils import (
-    get_all_multilingual_things,
-)
+from acdc.multilingual.utils import get_all_multilingual_things
+from acdc.ioi.utils import get_all_ioi_things
+from acdc.docstring.utils import get_all_docstring_things
+
 from acdc.acdc_graphics import (
     show,
 )
@@ -19,10 +20,11 @@ from acdc.acdc_graphics import (
 
 def parse_options():
     parser = argparse.ArgumentParser(description="Used to launch ACDC runs. Only task and threshold are required")
+    
+    task_choices = ['ioi', 'multilingual', 'docstring']
+    parser.add_argument('--task', type=str, required=True, choices=task_choices, help=f'Choose a task from the available options: {task_choices}')
 
-    task_choices = ['ioi', 'docstring', 'induction', 'tracr-reverse', 'tracr-proportion', 'greaterthan']
-    parser.add_argument('--task', type=str, required=True, choices=task_choices,
-                        help=f'Choose a task from the available options: {task_choices}')
+
     parser.add_argument('--threshold', type=float, required=True, help='Value for THRESHOLD')
     parser.add_argument('--zero-ablation', action='store_true', help='Use zero ablation')
     parser.add_argument('--indices-mode', type=str, default="normal")
@@ -32,16 +34,15 @@ def parse_options():
                         help="Whether to reset the network we're operating on before running interp on it")
     parser.add_argument('--metric', type=str, default="kl_div", help="Which metric to use for the experiment")
     parser.add_argument('--seed', type=int, default=1234)
-    parser.add_argument("--max-num-epochs", type=int, default=100_000)
+    parser.add_argument("--max-num-epochs", type=int, default=100000)
     parser.add_argument('--single-step', action='store_true', help='Use single step, mostly for testing')
 
     args = parser.parse_args(
-        [line.strip() for line in r"""--task=multilingual\
+        [line.strip() for line in r"""
+    --task=docstring\
     --zero-ablation\
     --threshold=0.71\
     --indices-mode=reverse\
-    --first-cache-cpu=False\
-    --second-cache-cpu=False\
     --max-num-epochs=100000""".split("\\\n")]
     )
 
@@ -61,7 +62,6 @@ if __name__ == '__main__':
     args = parse_options()
     torch.manual_seed(args.seed)
 
-    TASK = args.task
     ONLINE_CACHE_CPU = True
     CORRUPTED_CACHE_CPU = True
     THRESHOLD = args.threshold  # only used if >= 0.0
@@ -72,9 +72,27 @@ if __name__ == '__main__':
     DEVICE = args.device
 
     num_examples = 100
-    things = get_all_multilingual_things(
-        num_examples=num_examples, device=DEVICE, metric_name=args.metric
-    )
+    
+    if args.task == 'multilingual':
+        things = get_all_multilingual_things(
+            num_examples=num_examples, device=DEVICE, metric_name=args.metric
+        )
+    elif args.task == 'ioi':
+        things = get_all_ioi_things(
+            num_examples=num_examples, device=DEVICE, metric_name=args.metric
+        )
+    elif args.task == "docstring":
+        num_examples = 50
+        seq_len = 41  # unused
+        things = get_all_docstring_things(
+            num_examples=num_examples,
+            seq_len=seq_len,
+            device=DEVICE,
+            metric_name=args.metric,
+            correct_incorrect_wandb=False,
+        )
+    else:
+        raise ValueError('wrong task')
 
     tl_model = things.tl_model  # transformerlens model
     toks_int_values = things.validation_data  # clean data x_i
@@ -82,7 +100,7 @@ if __name__ == '__main__':
     validation_metric = things.validation_metric  # metric we use (e.g KL divergence)
 
     if args.reset_network:
-        reset_network(TASK, DEVICE, tl_model)
+        reset_network(args.task, DEVICE, tl_model)
 
     tl_model.reset_hooks()
 
@@ -107,7 +125,7 @@ if __name__ == '__main__':
 
         show(
             exp.corr,
-            f"ims/img_new_{i + 1}.png",
+            "ims/img_new.png",
             show_full_index=False,
         )
 
