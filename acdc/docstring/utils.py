@@ -56,7 +56,7 @@ class AllDataThings:
 
 def get_docstring_model(device="cuda"):
     tl_model = HookedTransformer.from_pretrained(
-        "attn-only-4l",
+        "gpt2",
     )
     tl_model.set_use_attn_result(True)
     tl_model.set_use_split_qkv_input(True)
@@ -83,7 +83,7 @@ def get_all_docstring_things(
     #     for i in range(num_examples * 2)
     # ]
     # batched_prompts = prompts.BatchedPrompts(prompts=raw_prompts, model=tl_model)
-    batched_prompts = prompts.BatchedPrompts()
+    batched_prompts = prompts.BatchedPrompts(tl_model)
     toks_int_values = batched_prompts.clean_tokens
     toks_int_values_other = None#batched_prompts.corrupt_tokens[dataset_version]
     toks_int_labels = batched_prompts.correct_tokens.squeeze(-1)

@@ -84,7 +84,7 @@ class Prompt:
 
 class BatchedPrompts:
     @typechecked
-    def __init__(self, prompts: List[Prompt], model: HookedTransformer):
+    def __init__(self, model: HookedTransformer):
         templates = [
             "So {name} is a really great friend, isn't",
             "So {name} is such a good cook, isn't",
@@ -145,8 +145,8 @@ class BatchedPrompts:
                 wrongs.append(responses[0])
 
         tokens = model.to_tokens(sentences, prepend_bos = True)
-        answers = torch.tensor(model.tokenizer(answers)["input_ids"]).squeeze()
-        wrongs = torch.tensor(model.tokenizer(wrongs)["input_ids"]).squeeze()
+        # seanswers = torch.tensor(model.tokenizer(answers)["input_ids"]).squeeze()
+        # wrongs = torch.tensor(model.tokenizer(wrongs)["input_ids"]).squeeze()
         # self.clean_prompt = [p.clean_prompt for p in prompts]
         # if isinstance(prompts[0].corrupt_prompt, str):
         #     self.corrupt_prompt = [p.corrupt_prompt for p in prompts]
@@ -173,7 +173,7 @@ class BatchedPrompts:
         # self.wrong_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.wrong_answers])
         self.correct_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in answers])
         self.wrong_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in wrongs])
-        self.tokens = tokens
+        self.clean_tokens = tokens
 
 def docstring_prompt_templ(
     style: str,
