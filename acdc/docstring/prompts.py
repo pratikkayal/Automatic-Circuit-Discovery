@@ -85,50 +85,95 @@ class Prompt:
 class BatchedPrompts:
     @typechecked
     def __init__(self, prompts: List[Prompt], model: HookedTransformer):
-        self.clean_prompt = [p.clean_prompt for p in prompts]
-        if isinstance(prompts[0].corrupt_prompt, str):
-            self.corrupt_prompt = [p.corrupt_prompt for p in prompts]
-        else:
-            self.corrupt_prompt = {key: [p.corrupt_prompt[key] for p in prompts] for key in prompts[0].corrupt_prompt.keys()}
-        self.correct_answers = [p.correct_answers for p in prompts]
-        if self.correct_answers[0][0][0] != " ":
-            print("THE CORRECT ANSWER DOES NOT START WITH A SPACE -- ARE YOU SURE ABOUT THAT?")
-        self.wrong_answers = [p.wrong_answers for p in prompts]
+        templates = [
+            "So {name} is a really great friend, isn't",
+            "So {name} is such a good cook, isn't",
+            "So {name} is a very good athlete, isn't",
+            "So {name} is a really nice person, isn't",
+            "So {name} is such a funny person, isn't"
+            ]
 
-        self.clean_tokens = torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in self.clean_prompt])
-        if isinstance(prompts[0].corrupt_prompt, str):
-            self.corrupt_tokens = torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in self.corrupt_prompt])
-        else:
-            self.corrupt_tokens = {
-                key: 
-                torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in prompts])
-                for key, prompts in self.corrupt_prompt.items()
-            }
+        male_names = [
+            "John",
+            "David",
+            "Mark",
+            "Paul",
+            "Ryan",
+            "Gary",
+            "Jack",
+            "Sean",
+            "Carl",
+            "Joe",    
+        ]
+        female_names = [
+            "Mary",
+            "Lisa",
+            "Anna",
+            "Sarah",
+            "Amy",
+            "Carol",
+            "Karen",
+            "Susan",
+            "Julie",
+            "Judy"
+        ]
 
-        # [batch, n_correct_tokens]
-        self.correct_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.correct_answers])
-        # [batch, n_wrong_tokens]
-        self.wrong_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.wrong_answers])
+        sentences = []
+        answers = []
+        wrongs = []
 
-    def get_prompt(self, index):
-        if isinstance(self.corrupt_prompt, list):
-            corrupt_prompt = self.corrupt_prompt[index]
-        else:
-            corrupt_prompt = {k: v[index] for k, v in self.corrupt_prompt.items()}
-        return Prompt(self.clean_prompt[index], corrupt_prompt, self.correct_answers[index], self.wrong_answers[index])
+        responses = [' he', ' she']
 
-    def correct_prob(self, logits: TT["batch", "pos", "d_vocab"], pos: int = -1) -> TT["batch"]:
-        pos_logits = logits[:, pos, :]
-        pos_log_probs = torch.log_softmax(pos_logits, dim=1)
-        correct_log_probs = torch.gather(pos_log_probs, index=self.correct_tokens, dim=1)
-        correct_probs = correct_log_probs.exp()
-        return correct_probs.mean(dim=1)
-    
-    def correct_rank(self, logits: TT["batch", "pos", "d_vocab"], pos: int = -1) -> TT["batch"]:
-        pos_logits = logits[:, pos, :]
-        best_correct_logits, _ = torch.gather(pos_logits, index=self.correct_tokens, dim=1).max(dim=1, keepdim=True)
-        return (pos_logits > best_correct_logits).long().sum(dim=1)
-    
+        count = 0
+
+        for name in male_names + female_names:
+            for template in templates:
+                cur_sentence = template.format(name = name)
+                sentences.append(cur_sentence)
+
+        batch_size = len(sentences)
+
+        count = 0
+
+        for _ in range(batch_size):
+            if count < (0.5 * len(sentences)):
+                answers.append(responses[0])
+                wrongs.append(responses[1])
+                count += 1
+            else:
+                answers.append(responses[1])
+                wrongs.append(responses[0])
+
+        tokens = model.to_tokens(sentences, prepend_bos = True)
+        answers = torch.tensor(model.tokenizer(answers)["input_ids"]).squeeze()
+        wrongs = torch.tensor(model.tokenizer(wrongs)["input_ids"]).squeeze()
+        # self.clean_prompt = [p.clean_prompt for p in prompts]
+        # if isinstance(prompts[0].corrupt_prompt, str):
+        #     self.corrupt_prompt = [p.corrupt_prompt for p in prompts]
+        # else:
+        #     self.corrupt_prompt = {key: [p.corrupt_prompt[key] for p in prompts] for key in prompts[0].corrupt_prompt.keys()}
+        # self.correct_answers = [p.correct_answers for p in prompts]
+        # if self.correct_answers[0][0][0] != " ":
+        #     print("THE CORRECT ANSWER DOES NOT START WITH A SPACE -- ARE YOU SURE ABOUT THAT?")
+        # self.wrong_answers = [p.wrong_answers for p in prompts]
+
+        # self.clean_tokens = torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in self.clean_prompt])
+        # if isinstance(prompts[0].corrupt_prompt, str):
+        #     self.corrupt_tokens = torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in self.corrupt_prompt])
+        # else:
+        #     self.corrupt_tokens = {
+        #         key: 
+        #         torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in prompts])
+        #         for key, prompts in self.corrupt_prompt.items()
+        #     }
+
+        # # [batch, n_correct_tokens]
+        # self.correct_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.correct_answers])
+        # # [batch, n_wrong_tokens]
+        # self.wrong_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.wrong_answers])
+        self.correct_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in answers])
+        self.wrong_tokens = torch.stack([model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in wrongs])
+        self.tokens = tokens
 
 def docstring_prompt_templ(
     style: str,
