@@ -9,6 +9,7 @@ See here https://github.com/jettmayzner/mi_utils_public
 
 from typing import List, Union, Dict, Optional, Tuple, Any
 import torch
+import numpy as np
 import random
 from dataclasses import dataclass
 from transformer_lens import HookedTransformer
@@ -85,66 +86,73 @@ class Prompt:
 class BatchedPrompts:
     @typechecked
     def __init__(self, model: HookedTransformer):
-        templates = [
-            "So {name} is a really great friend, isn't",
-            "So {name} is such a good cook, isn't",
-            "So {name} is a very good athlete, isn't",
-            "So {name} is a really nice person, isn't",
-            "So {name} is such a funny person, isn't"
-            ]
+        # templates = [
+        #     "So {name} is a really great friend, isn't",
+        #     "So {name} is such a good cook, isn't",
+        #     "So {name} is a very good athlete, isn't",
+        #     "So {name} is a really nice person, isn't",
+        #     "So {name} is such a funny person, isn't"
+        #     ]
 
-        male_names = [
-            "John",
-            "David",
-            "Mark",
-            "Paul",
-            "Ryan",
-            "Gary",
-            "Jack",
-            "Sean",
-            "Carl",
-            "Joe",    
-        ]
-        female_names = [
-            "Mary",
-            "Lisa",
-            "Anna",
-            "Sarah",
-            "Amy",
-            "Carol",
-            "Karen",
-            "Susan",
-            "Julie",
-            "Judy"
-        ]
+        # male_names = [
+        #     "John",
+        #     "David",
+        #     "Mark",
+        #     "Paul",
+        #     # "Ryan",
+        #     # "Gary",
+        #     # "Jack",
+        #     # "Sean",
+        #     # "Carl",
+        #     # "Joe",
+        # ]
+        # female_names = [
+        #     "Mary",
+        #     "Lisa",
+        #     "Anna",
+        #     "Sarah",
+        #     # "Amy",
+        #     # "Carol",
+        #     # "Karen",
+        #     # "Susan",
+        #     # "Julie",
+        #     # "Judy"
+        # ]
 
-        sentences = []
-        answers = []
-        wrongs = []
+        # sentences = []
+        # answers = []
+        # wrongs = []
 
-        responses = [' he', ' she']
+        # responses = [' he', ' she']
 
-        count = 0
+        # count = 0
 
-        for name in male_names + female_names:
-            for template in templates:
-                cur_sentence = template.format(name = name)
-                sentences.append(cur_sentence)
+        # for name in male_names + female_names:
+        #     for template in templates:
+        #         cur_sentence = template.format(name = name)
+        #         sentences.append(cur_sentence)
 
-        batch_size = len(sentences)
+        # batch_size = len(sentences)
 
-        count = 0
+        # count = 0
 
-        for _ in range(batch_size):
-            if count < (0.5 * len(sentences)):
-                answers.append(responses[0])
-                wrongs.append(responses[1])
-                count += 1
-            else:
-                answers.append(responses[1])
-                wrongs.append(responses[0])
+        # for _ in range(batch_size):
+        #     if count < (0.5 * len(sentences)):
+        #         answers.append(responses[0])
+        #         wrongs.append(responses[1])
+        #         count += 1
+        #     else:
+        #         answers.append(responses[1])
+        #         wrongs.append(responses[0])
 
+        # tokens = model.to_tokens(sentences, prepend_bos = True)
+
+
+        sentences = np.load("one_shot_sent.npy", allow_pickle=True)
         tokens = model.to_tokens(sentences, prepend_bos = True)
+        answers = np.load("one_shot_sentiments.npy", allow_pickle=True)
+        # answers are either positive or negative so wrongs would be vice versa of answers
+        wrongs = np.load("one_shot_wrong_sentiments.npy", allow_pickle=True)
         # seanswers = torch.tensor(model.tokenizer(answers)["input_ids"]).squeeze()
         # wrongs = torch.tensor(model.tokenizer(wrongs)["input_ids"]).squeeze()
         # self.clean_prompt = [p.clean_prompt for p in prompts]

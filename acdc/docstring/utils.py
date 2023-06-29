@@ -67,7 +67,7 @@ def get_all_docstring_things(
     num_examples,
     seq_len,
     device,
-    metric_name="kl_div",
+    metric_name="kl_div",#"docstring_metric",
     dataset_version="random_random",
     correct_incorrect_wandb=True,
     return_one_element=True,
